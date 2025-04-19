@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'calculator_screen.dart';
 
 class WelcomeScreen extends StatelessWidget {
-  const WelcomeScreen({Key? key}) : super(key: key); // Fix here, passing key to super()
+  const WelcomeScreen({super.key}); // Fix here, passing key to super()
 
   @override
   Widget build(BuildContext context) {
