@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:audioplayers/audioplayers.dart'; // Import the audioplayers package
+import 'dart:io'; // Add this import for platform detection
+import 'package:flutter/cupertino.dart'; // Import Cupertino package
+import 'package:math_expressions/math_expressions.dart'; // Import math_expressions package
 
 class CalculatorScreen extends StatefulWidget {
   final ThemeMode themeMode;
@@ -22,6 +26,8 @@ class CalculatorScreenState extends State<CalculatorScreen> {
   bool _isSoundEnabled = false;
   final int _maxInputLength = 15;
 
+  final AudioPlayer _audioPlayer = AudioPlayer(); // Initialize the audio player
+
   final List<String> _buttonLabels = [
     'AC', '+/-', '÷', '7', '8', '9', '×', '4', '5', '6', '-', '1', '2', '3', '+', '0', '.', '=',
   ];
@@ -30,10 +36,83 @@ class CalculatorScreenState extends State<CalculatorScreen> {
     setState(() {
       _isSoundEnabled = !_isSoundEnabled;
     });
-    print("Sound effects are ${_isSoundEnabled ? 'enabled' : 'disabled'}");
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    if (_isSoundEnabled) {
+      if (Platform.isAndroid) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Sound effects have been enabled, it\'s going to be loud for now!',
+              style: TextStyle(color: isDark ? Colors.white : Colors.white), // Always white text
+            ),
+            backgroundColor: Colors.grey[800],
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } else if (Platform.isIOS) {
+        showDialog(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: const Text('Sound effects enabled'),
+            content: const Text('It\'s going to be loud for now!'),
+            actions: [
+              CupertinoDialogAction(
+                child: const Text('OK'),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
+        );
+      }
+    } else {
+      if (Platform.isAndroid) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Sound effects have been disabled, it\'s quiet for now.',
+              style: TextStyle(color: isDark ? Colors.white : Colors.white), // Always white text
+            ),
+            backgroundColor: Colors.grey[800],
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } else if (Platform.isIOS) {
+        showDialog(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: const Text('Sound effects disabled'),
+            content: const Text('No more sounds, it\'s quiet for now.'),
+            actions: [
+              CupertinoDialogAction(
+                child: const Text('OK'),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
+        );
+      }
+    }
   }
 
-  void _onPressed(String value) {
+  Future<void> _playSound() async {
+    if (_isSoundEnabled) {
+      try {
+        final player = AudioPlayer(); // Create a new instance for each sound
+        await player.play(AssetSource('sounds/click.mp3'));
+        // Optionally dispose the player after the sound finishes
+        player.onPlayerComplete.listen((event) {
+          player.dispose();
+        });
+      } catch (e) {
+        // Handle error if needed
+      }
+    }
+  }
+
+  void _onPressed(String value) async {
+    await _playSound(); // Play sound when a button is pressed
     setState(() {
       if (_isResultCalculated) {
         if (value == 'AC') {
@@ -63,7 +142,19 @@ class CalculatorScreenState extends State<CalculatorScreen> {
             break;
           case '+/-':
             if (_input.isNotEmpty) {
-              _input = _input.startsWith('-') ? _input.substring(1) : '-$_input';
+              // Find the last operator (+, -, ×, ÷)
+              final lastOp = _input.lastIndexOf(RegExp(r'[+\-×÷]'));
+              String before = lastOp >= 0 ? _input.substring(0, lastOp + 1) : '';
+              String number = lastOp >= 0 ? _input.substring(lastOp + 1) : _input;
+
+              // Remove all leading '-' from number
+              number = number.replaceFirst(RegExp(r'^-+'), '');
+
+              // Toggle sign: add '-' if not present, remove if present
+              if (number.isNotEmpty && !number.startsWith('-')) {
+                number = '-$number';
+              }
+              _input = before + number;
             }
             break;
           case '.':
@@ -87,41 +178,13 @@ class CalculatorScreenState extends State<CalculatorScreen> {
     if (expression.isEmpty) return 'Error';
 
     try {
-      final result = _evaluateExpression(expression);
-      return _formatResult(result);
+      Parser p = Parser();
+      Expression exp = p.parse(expression);
+      double eval = exp.evaluate(EvaluationType.REAL, ContextModel());
+      return _formatResult(eval);
     } catch (e) {
-      print("Error evaluating expression: $e");
       return 'Error';
     }
-  }
-
-  double _evaluateExpression(String expression) {
-    if (expression[0] == '-') expression = '0$expression';
-    expression = expression.replaceAll('--', '+');
-    expression = expression.replaceAll(RegExp(r'(?<=\d)(?=[^\d\s])'), ' ').replaceAll(RegExp(r'(?<=\D)(?=\d)'), ' ');
-
-    final components = expression.split(' ').where((e) => e.isNotEmpty).toList();
-    double result = 0.0;
-    String operator = '+';
-
-    for (var component in components) {
-      if ('+-*/'.contains(component)) {
-        operator = component;
-      } else {
-        double number = double.parse(component);
-        switch (operator) {
-          case '+': result += number; break;
-          case '-': result -= number; break;
-          case '*': result *= number; break;
-          case '/': 
-            if (number == 0) throw Exception('Cannot divide by zero');
-            result /= number;
-            break;
-        }
-      }
-    }
-
-    return result;
   }
 
   String _formatResult(double result) {
@@ -194,6 +257,7 @@ class CalculatorScreenState extends State<CalculatorScreen> {
 
   @override
   void dispose() {
+    _audioPlayer.dispose(); // Dispose of the audio player
     super.dispose();
   }
 

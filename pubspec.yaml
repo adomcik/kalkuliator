@@ -1,8 +1,9 @@
 name: kalkuliator
-description: "A very good kalkuliator"
+description: A basic calculator with fun features
 publish_to: 'none'
 
 version: 1.0.0+1
+
 
 environment:
   sdk: ^3.7.2
@@ -14,11 +15,20 @@ dependencies:
   math_expressions: ^2.0.0
   cupertino_icons: ^1.0.8
   shared_preferences: ^2.0.18
+  audioplayers: 6.4.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.13.1
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/sounds/click.mp3
+
+flutter_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon.png"
