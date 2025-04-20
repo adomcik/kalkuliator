@@ -2,14 +2,23 @@ import 'package:flutter/material.dart';
 import 'calculator_screen.dart';
 
 class WelcomeScreen extends StatelessWidget {
-  const WelcomeScreen({super.key}); // Fix here, passing key to super()
+  final VoidCallback onContinue;
+  final ThemeMode themeMode;
+  final ValueChanged<ThemeMode> onThemeChanged;
+
+  const WelcomeScreen({
+    super.key,
+    required this.onContinue,
+    required this.themeMode,
+    required this.onThemeChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDarkMode ? Color.fromARGB(255, 0, 0, 0) : Colors.white, // White background in light mode, iOS blue in dark mode
+      backgroundColor: isDarkMode ? Colors.black : Colors.white,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 24),
@@ -22,15 +31,15 @@ class WelcomeScreen extends StatelessWidget {
                   Icon(
                     Icons.calculate_outlined,
                     size: 100,
-                    color: isDarkMode ? Color(0xFF007AFF) : Color(0xFF007AFF), // Icon color for light/dark mode
+                    color: const Color(0xFF007AFF),
                   ),
                   const SizedBox(height: 24),
                   Text(
-                    'Welcome to Kalkuliator', // Changed from 'CalcMate' to 'Kalkuliator'
+                    'Welcome to Kalkuliator',
                     style: TextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
-                      color: isDarkMode ? Colors.white : Colors.black, // Black text in light mode
+                      color: isDarkMode ? Colors.white : Colors.black,
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -39,7 +48,7 @@ class WelcomeScreen extends StatelessWidget {
                     'Your sleek and simple calculator is ready to go.',
                     style: TextStyle(
                       fontSize: 16,
-                      color: isDarkMode ? Colors.white70 : Colors.black54, // Dark text in light mode
+                      color: isDarkMode ? Colors.white70 : Colors.black54,
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -51,11 +60,17 @@ class WelcomeScreen extends StatelessWidget {
                 child: ElevatedButton(
                   onPressed: () {
                     Navigator.of(context).pushReplacement(
-                      MaterialPageRoute(builder: (_) => CalculatorScreen()), // Remove 'const'
+                      MaterialPageRoute(
+                        builder: (_) => CalculatorScreen(
+                          themeMode: themeMode,
+                          onThemeChanged: onThemeChanged,
+                        ),
+                      ),
                     );
+                    onContinue(); // Call the provided callback
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFF007AFF), // iOS blue button background
+                    backgroundColor: const Color(0xFF007AFF),
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
