@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:audioplayers/audioplayers.dart'; // Import the audioplayers package
-import 'dart:io'; // Add this import for platform detection
-import 'package:flutter/cupertino.dart'; // Import Cupertino package
-import 'package:math_expressions/math_expressions.dart'; // Import math_expressions package
+import 'package:audioplayers/audioplayers.dart';
+import 'dart:io';
+import 'package:flutter/cupertino.dart';
+import 'package:math_expressions/math_expressions.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+
+import 'welcome_screen.dart';
 
 class CalculatorScreen extends StatefulWidget {
   final ThemeMode themeMode;
@@ -25,12 +29,50 @@ class CalculatorScreenState extends State<CalculatorScreen> {
   bool _isResultCalculated = false;
   bool _isSoundEnabled = false;
   final int _maxInputLength = 15;
+  int _debugTapCount = 0;
+  bool _showDebugButton = false;
+  String _appVersion = '1.0.0';
 
-  final AudioPlayer _audioPlayer = AudioPlayer(); // Initialize the audio player
+  final List<String> _soundEffects = ['hl2.mp3', 'metal.mp3', 'click.mp3'];
+  String _selectedSound = 'hl2.mp3';
 
-  final List<String> _buttonLabels = [
-    'AC', '+/-', '÷', '7', '8', '9', '×', '4', '5', '6', '-', '1', '2', '3', '+', '0', '.', '=',
+  final AudioPlayer _audioPlayer = AudioPlayer();
+
+  static const List<String> kOriginalButtonLayout = [
+    'AC',
+    '+/-',
+    '÷',
+    '7',
+    '8',
+    '9',
+    '×',
+    '4',
+    '5',
+    '6',
+    '-',
+    '1',
+    '2',
+    '3',
+    '+',
+    '0',
+    '.',
+    '=',
   ];
+
+  final List<String> _buttonLabels = List.from(kOriginalButtonLayout);
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPackageInfo();
+  }
+
+  Future<void> _loadPackageInfo() async {
+    final packageInfo = await PackageInfo.fromPlatform();
+    setState(() {
+      _appVersion = packageInfo.version;
+    });
+  }
 
   void _toggleSound() {
     setState(() {
@@ -43,9 +85,9 @@ class CalculatorScreenState extends State<CalculatorScreen> {
       if (Platform.isAndroid) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
+            content: const Text(
               'Sound effects have been enabled, it\'s going to be loud for now!',
-              style: TextStyle(color: isDark ? Colors.white : Colors.white), // Always white text
+              style: TextStyle(color: Colors.white),
             ),
             backgroundColor: Colors.grey[800],
             behavior: SnackBarBehavior.floating,
@@ -54,25 +96,26 @@ class CalculatorScreenState extends State<CalculatorScreen> {
       } else if (Platform.isIOS) {
         showDialog(
           context: context,
-          builder: (context) => CupertinoAlertDialog(
-            title: const Text('Sound effects enabled'),
-            content: const Text('It\'s going to be loud for now!'),
-            actions: [
-              CupertinoDialogAction(
-                child: const Text('OK'),
-                onPressed: () => Navigator.of(context).pop(),
+          builder:
+              (context) => CupertinoAlertDialog(
+                title: const Text('Sound effects enabled'),
+                content: const Text('It\'s going to be loud for now!'),
+                actions: [
+                  CupertinoDialogAction(
+                    child: const Text('OK'),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
               ),
-            ],
-          ),
         );
       }
     } else {
       if (Platform.isAndroid) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
+            content: const Text(
               'Sound effects have been disabled, it\'s quiet for now.',
-              style: TextStyle(color: isDark ? Colors.white : Colors.white), // Always white text
+              style: TextStyle(color: Colors.white),
             ),
             backgroundColor: Colors.grey[800],
             behavior: SnackBarBehavior.floating,
@@ -81,16 +124,17 @@ class CalculatorScreenState extends State<CalculatorScreen> {
       } else if (Platform.isIOS) {
         showDialog(
           context: context,
-          builder: (context) => CupertinoAlertDialog(
-            title: const Text('Sound effects disabled'),
-            content: const Text('No more sounds, it\'s quiet for now.'),
-            actions: [
-              CupertinoDialogAction(
-                child: const Text('OK'),
-                onPressed: () => Navigator.of(context).pop(),
+          builder:
+              (context) => CupertinoAlertDialog(
+                title: const Text('Sound effects disabled'),
+                content: const Text('No more sounds, it\'s quiet for now.'),
+                actions: [
+                  CupertinoDialogAction(
+                    child: const Text('OK'),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
               ),
-            ],
-          ),
         );
       }
     }
@@ -99,20 +143,14 @@ class CalculatorScreenState extends State<CalculatorScreen> {
   Future<void> _playSound() async {
     if (_isSoundEnabled) {
       try {
-        final player = AudioPlayer(); // Create a new instance for each sound
-        await player.play(AssetSource('sounds/click.mp3'));
-        // Optionally dispose the player after the sound finishes
-        player.onPlayerComplete.listen((event) {
-          player.dispose();
-        });
-      } catch (e) {
-        // Handle error if needed
-      }
+        await _audioPlayer.stop();
+        await _audioPlayer.play(AssetSource('sounds/$_selectedSound'));
+      } catch (e) {}
     }
   }
 
   void _onPressed(String value) async {
-    await _playSound(); // Play sound when a button is pressed
+    await _playSound();
     setState(() {
       if (_isResultCalculated) {
         if (value == 'AC') {
@@ -142,15 +180,14 @@ class CalculatorScreenState extends State<CalculatorScreen> {
             break;
           case '+/-':
             if (_input.isNotEmpty) {
-              // Find the last operator (+, -, ×, ÷)
               final lastOp = _input.lastIndexOf(RegExp(r'[+\-×÷]'));
-              String before = lastOp >= 0 ? _input.substring(0, lastOp + 1) : '';
-              String number = lastOp >= 0 ? _input.substring(lastOp + 1) : _input;
+              String before =
+                  lastOp >= 0 ? _input.substring(0, lastOp + 1) : '';
+              String number =
+                  lastOp >= 0 ? _input.substring(lastOp + 1) : _input;
 
-              // Remove all leading '-' from number
               number = number.replaceFirst(RegExp(r'^-+'), '');
 
-              // Toggle sign: add '-' if not present, remove if present
               if (number.isNotEmpty && !number.startsWith('-')) {
                 number = '-$number';
               }
@@ -193,7 +230,10 @@ class CalculatorScreenState extends State<CalculatorScreen> {
       return result.toStringAsExponential(2).replaceAll('e+', 'e');
     }
 
-    String resultStr = result.toStringAsFixed(11).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '');
+    String resultStr = result
+        .toStringAsFixed(11)
+        .replaceAll(RegExp(r'0+$'), '')
+        .replaceAll(RegExp(r'\.$'), '');
     return resultStr.length > 12 ? resultStr.substring(0, 12) : resultStr;
   }
 
@@ -203,25 +243,363 @@ class CalculatorScreenState extends State<CalculatorScreen> {
     });
   }
 
+  void _restoreOriginalButtons() {
+    setState(() {
+      _buttonLabels
+        ..clear()
+        ..addAll(kOriginalButtonLayout);
+    });
+  }
+
+  IconData _getSoundIcon(String sound) {
+    switch (sound) {
+      case 'hl2.mp3':
+        return Icons.science;
+      case 'metal.mp3':
+        return Icons.construction;
+      case 'click.mp3':
+        return Icons.touch_app;
+      default:
+        return Icons.music_note;
+    }
+  }
+
+  void _showSoundPicker() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (context) {
+        return Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SwitchListTile(
+                  title: Text(
+                    'Sound Effects',
+                    style: TextStyle(
+                      color: Theme.of(context).textTheme.bodyLarge?.color,
+                    ),
+                  ),
+                  value: _isSoundEnabled,
+                  onChanged: (val) {
+                    Navigator.pop(context);
+                    _toggleSound();
+                  },
+                  secondary: Icon(
+                    _isSoundEnabled ? Icons.volume_up : Icons.volume_off,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+                const Divider(height: 1),
+                ..._soundEffects.map((sound) {
+                  return ListTile(
+                    leading: Icon(
+                      _getSoundIcon(sound),
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    title: Text(
+                      sound.replaceAll('.mp3', '').toUpperCase(),
+                      style: TextStyle(
+                        color: Theme.of(context).textTheme.bodyLarge?.color,
+                      ),
+                    ),
+                    trailing:
+                        _selectedSound == sound
+                            ? Icon(
+                              Icons.check,
+                              color: Theme.of(context).colorScheme.primary,
+                            )
+                            : null,
+                    onTap:
+                        !_isSoundEnabled
+                            ? null
+                            : () {
+                              setState(() {
+                                _selectedSound = sound;
+                              });
+                              Navigator.pop(context);
+                            },
+                  );
+                }).toList(),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _handleTopLeftTap() {
+    setState(() {
+      _debugTapCount++;
+      if (_debugTapCount >= 7) {
+        _showDebugButton = true;
+        _debugTapCount = 0;
+      }
+    });
+  }
+
+  Future<void> _resetApp() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+
+    if (Platform.isAndroid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('App will now close and reset completely'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      await Future.delayed(const Duration(seconds: 2));
+      SystemNavigator.pop();
+    } else if (Platform.isIOS) {
+      showDialog(
+        context: context,
+        builder:
+            (context) => CupertinoAlertDialog(
+              title: const Text('Reset Complete'),
+              content: const Text('App will now close and reset completely'),
+              actions: [
+                CupertinoDialogAction(
+                  child: const Text('OK'),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    exit(0);
+                  },
+                ),
+              ],
+            ),
+      );
+    }
+  }
+
+  void _showDebugMenu() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (context) {
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            // Calculate approximate height needed for content
+            const double titleHeight =
+                20 + 16 + 8; // Text + top padding + bottom padding
+            const double listTileHeight = 56;
+            const double dividerHeight = 16;
+            const double bottomPadding = 24;
+
+            final contentHeight =
+                titleHeight +
+                (6 * listTileHeight) + // 6 ListTiles
+                (3 * dividerHeight) + // 3 Dividers
+                bottomPadding;
+
+            final shouldScroll = constraints.maxHeight < contentHeight;
+
+            return Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardColor,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(18),
+                ),
+              ),
+              child: Stack(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 24),
+                    child: SingleChildScrollView(
+                      physics:
+                          shouldScroll
+                              ? const AlwaysScrollableScrollPhysics()
+                              : const NeverScrollableScrollPhysics(),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Padding(
+                            padding: EdgeInsets.only(top: 16, bottom: 8),
+                            child: Text(
+                              'Debug Menu',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.red,
+                              ),
+                            ),
+                          ),
+                          Container(
+                            color: Theme.of(context).cardColor,
+                            child: ListTile(
+                              leading: const Icon(Icons.home),
+                              title: const Text('Show Welcome Screen'),
+                              onTap: () {
+                                Navigator.pop(context);
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder:
+                                        (context) => WelcomeScreen(
+                                          themeMode: widget.themeMode,
+                                          onThemeChanged: widget.onThemeChanged,
+                                          onContinue:
+                                              () => Navigator.of(context).pop(),
+                                        ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                          const Divider(height: 1),
+                          Container(
+                            color: Theme.of(context).cardColor,
+                            child: SwitchListTile(
+                              secondary: Icon(
+                                _isSoundEnabled
+                                    ? Icons.volume_up
+                                    : Icons.volume_off,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                              title: const Text('Sound Effects'),
+                              value: _isSoundEnabled,
+                              onChanged: (val) {
+                                Navigator.pop(context);
+                                _toggleSound();
+                              },
+                            ),
+                          ),
+                          const Divider(height: 1),
+                          Container(
+                            color: Theme.of(context).cardColor,
+                            child: ListTile(
+                              leading: const Icon(Icons.shuffle),
+                              title: const Text('Shuffle Buttons'),
+                              onTap: () {
+                                Navigator.pop(context);
+                                _shuffleButtons();
+                              },
+                            ),
+                          ),
+                          Container(
+                            color: Theme.of(context).cardColor,
+                            child: ListTile(
+                              leading: const Icon(Icons.undo),
+                              title: const Text('Unshuffle Buttons'),
+                              onTap: () {
+                                Navigator.pop(context);
+                                _restoreOriginalButtons();
+                              },
+                            ),
+                          ),
+                          const Divider(height: 1),
+                          Container(
+                            color: Theme.of(context).cardColor,
+                            child: ListTile(
+                              leading: const Icon(
+                                Icons.refresh,
+                                color: Colors.red,
+                              ),
+                              title: const Text(
+                                'Full App Reset',
+                                style: TextStyle(
+                                  color: Colors.red,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              subtitle: const Text(
+                                'Clear all app data and close the app',
+                              ),
+                              onTap: () {
+                                Navigator.pop(context);
+                                showDialog(
+                                  context: context,
+                                  builder:
+                                      (context) => AlertDialog(
+                                        title: const Text('Confirm Full Reset'),
+                                        content: const Text(
+                                          'This will clear ALL app data and close the app. Continue?',
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            child: const Text('Cancel'),
+                                            onPressed:
+                                                () =>
+                                                    Navigator.of(context).pop(),
+                                          ),
+                                          TextButton(
+                                            child: const Text(
+                                              'RESET',
+                                              style: TextStyle(
+                                                color: Colors.red,
+                                              ),
+                                            ),
+                                            onPressed: () {
+                                              Navigator.of(context).pop();
+                                              _resetApp();
+                                            },
+                                          ),
+                                        ],
+                                      ),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    bottom: 8,
+                    right: 16,
+                    child: Text(
+                      'v$_appVersion',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(
+                          context,
+                        ).textTheme.bodySmall?.color?.withOpacity(0.6),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildRoundButton(String text, {Color? color, bool isNumber = false}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final buttonColor = isNumber
-        ? (isDark ? const Color(0xFF3F3F3F) : const Color(0xFF818181))
-        : (color ?? const Color(0xFF007AFF));
+    final buttonColor =
+        isNumber
+            ? (isDark ? const Color(0xFF3F3F3F) : const Color(0xFF818181))
+            : (color ?? const Color(0xFF007AFF));
 
-    return Padding(
-      padding: const EdgeInsets.all(6.0),
-      child: SizedBox(
-        width: 80,
-        height: 80,
-        child: ElevatedButton(
-          onPressed: () => _onPressed(text),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: buttonColor,
-            shape: const CircleBorder(),
-            padding: EdgeInsets.zero,
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.all(6.0),
+        child: AspectRatio(
+          aspectRatio: 1,
+          child: ElevatedButton(
+            onPressed: () => _onPressed(text),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: buttonColor,
+              shape: const CircleBorder(),
+              padding: EdgeInsets.zero,
+            ),
+            child: Text(
+              text,
+              style: const TextStyle(fontSize: 30, color: Colors.white),
+            ),
           ),
-          child: Text(text, style: const TextStyle(fontSize: 30, color: Colors.white)),
         ),
       ),
     );
@@ -229,23 +607,31 @@ class CalculatorScreenState extends State<CalculatorScreen> {
 
   Widget _buildWideButton(String text, {Color? color, bool isNumber = false}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final buttonColor = isNumber
-        ? (isDark ? const Color(0xFF3F3F3F) : const Color(0xFF818181))
-        : (color ?? const Color(0xFF007AFF));
+    final buttonColor =
+        isNumber
+            ? (isDark ? const Color(0xFF3F3F3F) : const Color(0xFF818181))
+            : (color ?? const Color(0xFF007AFF));
 
-    return Padding(
-      padding: const EdgeInsets.all(6.0),
-      child: SizedBox(
-        width: 172,
-        height: 80,
-        child: ElevatedButton(
-          onPressed: () => _onPressed(text),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: buttonColor,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
-            padding: EdgeInsets.zero,
+    return Expanded(
+      flex: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(6.0),
+        child: AspectRatio(
+          aspectRatio: 2.1,
+          child: ElevatedButton(
+            onPressed: () => _onPressed(text),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: buttonColor,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(40),
+              ),
+              padding: EdgeInsets.zero,
+            ),
+            child: Text(
+              text,
+              style: const TextStyle(fontSize: 30, color: Colors.white),
+            ),
           ),
-          child: Text(text, style: const TextStyle(fontSize: 30, color: Colors.white)),
         ),
       ),
     );
@@ -257,14 +643,16 @@ class CalculatorScreenState extends State<CalculatorScreen> {
 
   @override
   void dispose() {
-    _audioPlayer.dispose(); // Dispose of the audio player
+    _audioPlayer.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     SystemChrome.setSystemUIOverlayStyle(
-      Theme.of(context).brightness == Brightness.dark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+      Theme.of(context).brightness == Brightness.dark
+          ? SystemUiOverlayStyle.light
+          : SystemUiOverlayStyle.dark,
     );
 
     double fontSize = 48;
@@ -279,15 +667,43 @@ class CalculatorScreenState extends State<CalculatorScreen> {
           children: [
             Stack(
               children: [
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  child: GestureDetector(
+                    onTap: _handleTopLeftTap,
+                    child: Container(
+                      width: 50,
+                      height: 50,
+                      color: Colors.transparent,
+                    ),
+                  ),
+                ),
+                if (_showDebugButton)
+                  Positioned(
+                    top: 16,
+                    left: 16,
+                    child: IconButton(
+                      icon: const Icon(
+                        Icons.bug_report,
+                        color: Colors.red,
+                        size: 28,
+                      ),
+                      tooltip: 'Debug',
+                      onPressed: _showDebugMenu,
+                    ),
+                  ),
                 Container(
                   alignment: Alignment.centerRight,
                   padding: const EdgeInsets.only(top: 16, right: 16),
-                  child: IconButton(
-                    icon: Icon(
-                      _isSoundEnabled ? Icons.volume_up : Icons.volume_off,
-                      size: 28,
-                    ),
-                    onPressed: _toggleSound,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.music_note, size: 28),
+                        onPressed: _showSoundPicker,
+                      ),
+                    ],
                   ),
                 ),
                 Container(
@@ -296,6 +712,7 @@ class CalculatorScreenState extends State<CalculatorScreen> {
                   child: IconButton(
                     icon: const Icon(Icons.shuffle, size: 28),
                     onPressed: _shuffleButtons,
+                    onLongPress: _restoreOriginalButtons,
                   ),
                 ),
               ],
@@ -312,70 +729,110 @@ class CalculatorScreenState extends State<CalculatorScreen> {
                 },
                 child: Container(
                   alignment: Alignment.bottomRight,
-                  padding: const EdgeInsets.all(24),
+                  padding: const EdgeInsets.only(
+                    left: 24,
+                    right: 24,
+                    bottom: 24,
+                    top: 60,
+                  ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.end,
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      AnimatedDefaultTextStyle(
-                        duration: const Duration(milliseconds: 200),
-                        style: TextStyle(
-                          fontSize: _isResultCalculated ? 24 : fontSize,
-                          color: _isResultCalculated
-                              ? Colors.grey
-                              : Theme.of(context).textTheme.bodyLarge?.color,
-                        ),
-                        child: Text(_input),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Expanded(
+                            child: AnimatedDefaultTextStyle(
+                              duration: const Duration(milliseconds: 200),
+                              style: TextStyle(
+                                fontSize: _isResultCalculated ? 24 : fontSize,
+                                color:
+                                    _isResultCalculated
+                                        ? Colors.grey
+                                        : Theme.of(
+                                          context,
+                                        ).textTheme.bodyLarge?.color,
+                              ),
+                              child: Text(
+                                _input,
+                                textAlign: TextAlign.right,
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 10),
                       Text(
                         _result,
                         style: TextStyle(
                           fontSize: 62,
-                          color: Theme.of(context).brightness == Brightness.dark
-                              ? Colors.white
-                              : Colors.black,
+                          color:
+                              Theme.of(context).brightness == Brightness.dark
+                                  ? Colors.white
+                                  : Colors.black,
                         ),
+                        textAlign: TextAlign.right,
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
                       ),
                     ],
                   ),
                 ),
               ),
             ),
-            _buildRow([
-              _buildWideButton(_buttonLabels[0], isNumber: false),
-              _buildRoundButton(_buttonLabels[1], isNumber: false),
-              const SizedBox(width: 8),
-              _buildRoundButton(_buttonLabels[2], isNumber: false),
-            ]),
-            _buildRow([
-              _buildRoundButton(_buttonLabels[3], isNumber: true),
-              _buildRoundButton(_buttonLabels[4], isNumber: true),
-              _buildRoundButton(_buttonLabels[5], isNumber: true),
-              const SizedBox(width: 8),
-              _buildRoundButton(_buttonLabels[6], isNumber: false),
-            ]),
-            _buildRow([
-              _buildRoundButton(_buttonLabels[7], isNumber: true),
-              _buildRoundButton(_buttonLabels[8], isNumber: true),
-              _buildRoundButton(_buttonLabels[9], isNumber: true),
-              const SizedBox(width: 8),
-              _buildRoundButton(_buttonLabels[10], isNumber: false),
-            ]),
-            _buildRow([
-              _buildRoundButton(_buttonLabels[11], isNumber: true),
-              _buildRoundButton(_buttonLabels[12], isNumber: true),
-              _buildRoundButton(_buttonLabels[13], isNumber: true),
-              const SizedBox(width: 8),
-              _buildRoundButton(_buttonLabels[14], isNumber: false),
-            ]),
-            _buildRow([
-              _buildWideButton(_buttonLabels[15], isNumber: true),
-              _buildRoundButton(_buttonLabels[16], isNumber: true),
-              const SizedBox(width: 8),
-              _buildRoundButton(_buttonLabels[17], color: Colors.orange, isNumber: false),
-            ]),
-            const SizedBox(height: 16),
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 400),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                  child: Column(
+                    children: [
+                      _buildRow([
+                        _buildWideButton(_buttonLabels[0], isNumber: false),
+                        _buildRoundButton(_buttonLabels[1], isNumber: false),
+                        const SizedBox(width: 8),
+                        _buildRoundButton(_buttonLabels[2], isNumber: false),
+                      ]),
+                      _buildRow([
+                        _buildRoundButton(_buttonLabels[3], isNumber: true),
+                        _buildRoundButton(_buttonLabels[4], isNumber: true),
+                        _buildRoundButton(_buttonLabels[5], isNumber: true),
+                        const SizedBox(width: 8),
+                        _buildRoundButton(_buttonLabels[6], isNumber: false),
+                      ]),
+                      _buildRow([
+                        _buildRoundButton(_buttonLabels[7], isNumber: true),
+                        _buildRoundButton(_buttonLabels[8], isNumber: true),
+                        _buildRoundButton(_buttonLabels[9], isNumber: true),
+                        const SizedBox(width: 8),
+                        _buildRoundButton(_buttonLabels[10], isNumber: false),
+                      ]),
+                      _buildRow([
+                        _buildRoundButton(_buttonLabels[11], isNumber: true),
+                        _buildRoundButton(_buttonLabels[12], isNumber: true),
+                        _buildRoundButton(_buttonLabels[13], isNumber: true),
+                        const SizedBox(width: 8),
+                        _buildRoundButton(_buttonLabels[14], isNumber: false),
+                      ]),
+                      _buildRow([
+                        _buildWideButton(_buttonLabels[15], isNumber: true),
+                        _buildRoundButton(_buttonLabels[16], isNumber: true),
+                        const SizedBox(width: 8),
+                        _buildRoundButton(
+                          _buttonLabels[17],
+                          color: Colors.orange,
+                          isNumber: false,
+                        ),
+                      ]),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 2),
           ],
         ),
       ),

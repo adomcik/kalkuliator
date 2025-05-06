@@ -8,7 +8,10 @@ import 'welcome_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp, DeviceOrientation.portraitDown]);
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
 
   runApp(const Kalkuliator());
 }
@@ -77,7 +80,7 @@ class _KalkuliatorState extends State<Kalkuliator> {
         useMaterial3: true,
         primarySwatch: Colors.deepPurple,
       ),
-      darkTheme: ThemeData( 
+      darkTheme: ThemeData(
         brightness: Brightness.dark,
         useMaterial3: true,
         primarySwatch: Colors.deepPurple,
