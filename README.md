@@ -5,6 +5,6 @@ Unikalus modernaus dizaino skaičiuotuvas su įprastinėmis funkcijomis bei žai
 Funkcijos:
 - Daugyba, dalyba, sudėtis, atimtis.
 - +/- funkcija.
-- Mygtukų sumaišymo funkcija (ang. suffle).
+- Mygtukų sumaišymo funkcija (ang. shuffle).
 - Garso effektai.
 
