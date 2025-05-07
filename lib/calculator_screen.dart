@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:audioplayers/audioplayers.dart';
-import 'dart:io';
-import 'package:flutter/cupertino.dart';
 import 'package:math_expressions/math_expressions.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -32,6 +30,7 @@ class CalculatorScreenState extends State<CalculatorScreen> {
   int _debugTapCount = 0;
   bool _showDebugButton = false;
   String _appVersion = '1.0.0';
+  int _debugMenuTitleTapCount = 0;
 
   final List<String> _soundEffects = ['hl2.mp3', 'metal.mp3', 'click.mp3'];
   String _selectedSound = 'hl2.mp3';
@@ -79,64 +78,28 @@ class CalculatorScreenState extends State<CalculatorScreen> {
       _isSoundEnabled = !_isSoundEnabled;
     });
 
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     if (_isSoundEnabled) {
-      if (Platform.isAndroid) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text(
-              'Sound effects have been enabled, it\'s going to be loud for now!',
-              style: TextStyle(color: Colors.white),
-            ),
-            backgroundColor: Colors.grey[800],
-            behavior: SnackBarBehavior.floating,
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Sound effects have been enabled, it\'s going to be loud for now!',
+            style: TextStyle(color: Colors.white),
           ),
-        );
-      } else if (Platform.isIOS) {
-        showDialog(
-          context: context,
-          builder:
-              (context) => CupertinoAlertDialog(
-                title: const Text('Sound effects enabled'),
-                content: const Text('It\'s going to be loud for now!'),
-                actions: [
-                  CupertinoDialogAction(
-                    child: const Text('OK'),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                ],
-              ),
-        );
-      }
+          backgroundColor: Colors.grey[800],
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     } else {
-      if (Platform.isAndroid) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text(
-              'Sound effects have been disabled, it\'s quiet for now.',
-              style: TextStyle(color: Colors.white),
-            ),
-            backgroundColor: Colors.grey[800],
-            behavior: SnackBarBehavior.floating,
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Sound effects have been disabled, it\'s quiet for now.',
+            style: TextStyle(color: Colors.white),
           ),
-        );
-      } else if (Platform.isIOS) {
-        showDialog(
-          context: context,
-          builder:
-              (context) => CupertinoAlertDialog(
-                title: const Text('Sound effects disabled'),
-                content: const Text('No more sounds, it\'s quiet for now.'),
-                actions: [
-                  CupertinoDialogAction(
-                    child: const Text('OK'),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                ],
-              ),
-        );
-      }
+          backgroundColor: Colors.grey[800],
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
@@ -347,38 +310,172 @@ class CalculatorScreenState extends State<CalculatorScreen> {
     });
   }
 
+  void _handleDebugMenuTitleTap() {
+    setState(() {
+      _debugMenuTitleTapCount++;
+
+      // Show a subtle indicator for feedback
+      if (_debugMenuTitleTapCount > 0 && _debugMenuTitleTapCount < 7) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '${7 - _debugMenuTitleTapCount} more taps to unlock credits',
+            ),
+            duration: const Duration(milliseconds: 500),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+
+      if (_debugMenuTitleTapCount >= 7) {
+        _showCredits();
+        _debugMenuTitleTapCount = 0;
+      }
+    });
+  }
+
+  void _showCredits() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final backgroundColor = isDark ? Colors.grey[900] : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20.0),
+          ),
+          backgroundColor: backgroundColor,
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            constraints: const BoxConstraints(maxWidth: 400),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '🌟 Credits 🌟',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: textColor,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                _buildCreditItem(
+                  'Developers:',
+                  'Adomas, Vincentas, Tautvydas',
+                  Icons.design_services,
+                  textColor,
+                ),
+                const SizedBox(height: 10),
+                Divider(color: textColor.withOpacity(0.5)),
+                const SizedBox(height: 10),
+                Text(
+                  'Special Thanks',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: textColor,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'To Vincentas Vincas Šeštakauskas for cooking this sh*t up.',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontStyle: FontStyle.italic,
+                    color: textColor,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Version $_appVersion',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: textColor.withOpacity(0.7),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      if (_isSoundEnabled) {
+                        _playSound();
+                      }
+                    },
+                    child: const Text('Close', style: TextStyle(fontSize: 16)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCreditItem(
+    String role,
+    String name,
+    IconData icon,
+    Color textColor,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        children: [
+          Icon(icon, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  role,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: textColor,
+                  ),
+                ),
+                Text(
+                  name,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: textColor.withOpacity(0.8),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _resetApp() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
 
-    if (Platform.isAndroid) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('App will now close and reset completely'),
-          duration: Duration(seconds: 2),
-        ),
-      );
-      await Future.delayed(const Duration(seconds: 2));
-      SystemNavigator.pop();
-    } else if (Platform.isIOS) {
-      showDialog(
-        context: context,
-        builder:
-            (context) => CupertinoAlertDialog(
-              title: const Text('Reset Complete'),
-              content: const Text('App will now close and reset completely'),
-              actions: [
-                CupertinoDialogAction(
-                  child: const Text('OK'),
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    exit(0);
-                  },
-                ),
-              ],
-            ),
-      );
-    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('App will now close and reset completely'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+    await Future.delayed(const Duration(seconds: 2));
+    SystemNavigator.pop();
   }
 
   void _showDebugMenu() {
@@ -424,14 +521,17 @@ class CalculatorScreenState extends State<CalculatorScreen> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Padding(
-                            padding: EdgeInsets.only(top: 16, bottom: 8),
-                            child: Text(
-                              'Debug Menu',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.red,
+                          GestureDetector(
+                            onTap: _handleDebugMenuTitleTap,
+                            child: const Padding(
+                              padding: EdgeInsets.only(top: 16, bottom: 8),
+                              child: Text(
+                                'Debug Menu',
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.red,
+                                ),
                               ),
                             ),
                           ),

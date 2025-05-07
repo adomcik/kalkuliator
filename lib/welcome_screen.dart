@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'calculator_screen.dart';
-import 'package:flutter/services.dart';
 
 class WelcomeScreen extends StatelessWidget {
   final VoidCallback onContinue;
@@ -16,36 +15,26 @@ class WelcomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-
-    SystemChrome.setSystemUIOverlayStyle(
-      isDarkMode ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
-    );
+    final brightness = Theme.of(context).brightness;
+    final isDarkMode = brightness == Brightness.dark;
+    final textTheme = Theme.of(context).textTheme;
 
     final media = MediaQuery.of(context);
     final screenWidth = media.size.width;
     final screenHeight = media.size.height;
 
+    // Responsive text sizes
     double headingFontSize = (screenWidth * 0.0715).clamp(0, 30);
     double featureTitleFontSize = (screenWidth * 0.045).clamp(0, 18);
     double featureSubFontSize = (screenWidth * 0.032).clamp(0, 13);
     double buttonFontSize = (screenWidth * 0.045).clamp(0, 18);
     double buttonPadding = (screenHeight * 0.018).clamp(0, 16);
 
-    final headingStyle = TextStyle(
-      fontSize: headingFontSize,
-      fontWeight: FontWeight.bold,
-      color: isDarkMode ? Colors.white : Colors.black,
-    );
-
-    final buttonStyle = ElevatedButton.styleFrom(
-      backgroundColor: const Color(0xFF007AFF),
-      padding: EdgeInsets.symmetric(vertical: buttonPadding),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-    );
+    // Text colors based on theme
+    final textColor = isDarkMode ? Colors.white : Colors.black;
 
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: isDarkMode ? Colors.black : Colors.white,
       body: SafeArea(
         child: Padding(
           padding: EdgeInsets.only(
@@ -63,7 +52,11 @@ class WelcomeScreen extends StatelessWidget {
                   SizedBox(height: screenHeight * 0.03),
                   Text(
                     'Welcome to Kalkuliator',
-                    style: headingStyle,
+                    style: textTheme.headlineMedium?.copyWith(
+                      fontSize: headingFontSize,
+                      fontWeight: FontWeight.bold,
+                      color: textColor,
+                    ),
                     textAlign: TextAlign.center,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -79,31 +72,31 @@ class WelcomeScreen extends StatelessWidget {
                   children: [
                     SizedBox(height: screenHeight * 0.08),
                     _buildFeatureRow(
+                      context: context,
                       icon: Icons.calculate,
                       title: 'Elegant and simple design',
                       subtext: 'Easy to use calculator with an elegant design.',
-                      isDarkMode: isDarkMode,
                       titleFontSize: featureTitleFontSize,
                       subFontSize: featureSubFontSize,
                       maxWidth: screenWidth * 0.75,
                     ),
                     SizedBox(height: screenHeight * 0.05),
                     _buildFeatureRow(
+                      context: context,
                       icon: Icons.volume_up,
                       title: 'Toggleable sound effects',
                       subtext: 'Buttons give instant audio feedback.',
-                      isDarkMode: isDarkMode,
                       titleFontSize: featureTitleFontSize,
                       subFontSize: featureSubFontSize,
                       maxWidth: screenWidth * 0.75,
                     ),
                     SizedBox(height: screenHeight * 0.05),
                     _buildFeatureRow(
+                      context: context,
                       icon: Icons.brightness_6,
                       title: 'Light and dark modes',
                       subtext:
-                          'Automatically switches depending on your\nphone\'s settings.',
-                      isDarkMode: isDarkMode,
+                          'Automatically switches depending on your\ndevice settings.',
                       titleFontSize: featureTitleFontSize,
                       subFontSize: featureSubFontSize,
                       maxWidth: screenWidth * 0.75,
@@ -112,54 +105,58 @@ class WelcomeScreen extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () async {
-                    await Navigator.of(context).pushReplacement(
-                      PageRouteBuilder(
-                        transitionDuration: const Duration(milliseconds: 500),
-                        pageBuilder:
-                            (context, animation, secondaryAnimation) =>
-                                CalculatorScreen(
-                                  themeMode: themeMode,
-                                  onThemeChanged: onThemeChanged,
-                                ),
-                        transitionsBuilder: (
-                          context,
-                          animation,
-                          secondaryAnimation,
-                          child,
-                        ) {
-                          final offsetAnimation = Tween<Offset>(
-                            begin: const Offset(0, 0.15),
-                            end: Offset.zero,
-                          ).animate(
-                            CurvedAnimation(
-                              parent: animation,
-                              curve: Curves.easeOutCubic,
-                            ),
-                          );
-                          return FadeTransition(
-                            opacity: animation,
-                            child: SlideTransition(
-                              position: offsetAnimation,
-                              child: child,
-                            ),
-                          );
-                        },
-                      ),
-                    );
-                    onContinue();
-                  },
-                  style: buttonStyle,
-                  child: Text(
-                    'Continue',
-                    style: TextStyle(
-                      fontSize: buttonFontSize,
-                      color: Colors.white,
-                      letterSpacing: 1,
+              ElevatedButton(
+                onPressed: () async {
+                  await Navigator.of(context).pushReplacement(
+                    PageRouteBuilder(
+                      transitionDuration: const Duration(milliseconds: 500),
+                      pageBuilder:
+                          (context, animation, secondaryAnimation) =>
+                              CalculatorScreen(
+                                themeMode: themeMode,
+                                onThemeChanged: onThemeChanged,
+                              ),
+                      transitionsBuilder: (
+                        context,
+                        animation,
+                        secondaryAnimation,
+                        child,
+                      ) {
+                        final offsetAnimation = Tween<Offset>(
+                          begin: const Offset(0, 0.15),
+                          end: Offset.zero,
+                        ).animate(
+                          CurvedAnimation(
+                            parent: animation,
+                            curve: Curves.easeOutCubic,
+                          ),
+                        );
+                        return FadeTransition(
+                          opacity: animation,
+                          child: SlideTransition(
+                            position: offsetAnimation,
+                            child: child,
+                          ),
+                        );
+                      },
                     ),
+                  );
+                  onContinue();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF007AFF),
+                  minimumSize: const Size(double.infinity, 56),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  padding: EdgeInsets.symmetric(vertical: buttonPadding),
+                ),
+                child: Text(
+                  'Continue',
+                  style: TextStyle(
+                    fontSize: buttonFontSize,
+                    color: Colors.white,
+                    letterSpacing: 1,
                   ),
                 ),
               ),
@@ -171,19 +168,21 @@ class WelcomeScreen extends StatelessWidget {
   }
 
   Widget _buildFeatureRow({
+    required BuildContext context,
     required IconData icon,
     required String title,
     required String subtext,
-    required bool isDarkMode,
     required double titleFontSize,
     required double subFontSize,
     required double maxWidth,
   }) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Icon(icon, size: 24, color: isDarkMode ? Colors.white : Colors.black),
-        const SizedBox(width: 8),
+        const SizedBox(width: 12),
         ConstrainedBox(
           constraints: BoxConstraints(maxWidth: maxWidth),
           child: Column(
