@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.kalkuliator"
+    namespace = "com.example.kalkuliator"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = "27.0.12077973"
 
