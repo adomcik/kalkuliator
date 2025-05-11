@@ -83,7 +83,7 @@ class _KalkuliatorState extends State<Kalkuliator> {
       darkTheme: ThemeData(
         brightness: Brightness.dark,
         useMaterial3: true,
-        primarySwatch: Colors.deepPurple,
+        primarySwatch: Colors.blue,
         scaffoldBackgroundColor: Colors.black,
       ),
       themeMode: _themeMode,

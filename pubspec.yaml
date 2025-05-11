@@ -1,8 +1,8 @@
 name: Kalkuliator
-description: Paprastas kalkuliatorius, su kurio pagalba galėsite atlikti paprastas matematikos operacijas.
+description: Unikalus modernaus dizaino skaičiuotuvas su įprastinėmis funkcijomis bei žaidimo elementais.
 publish_to: 'none'
 
-version: 1.1.1+1
+version: 1.2.0+1
 
 
 environment:
@@ -16,6 +16,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   shared_preferences: ^2.0.18
   audioplayers: 6.4.0
+  fluttertoast: ^8.2.4
 
 dev_dependencies:
   flutter_test:
@@ -34,5 +35,4 @@ flutter:
 
 flutter_icons:
   android: true
-  ios: true
   image_path: "assets/appicon.png"

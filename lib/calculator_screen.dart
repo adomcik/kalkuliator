@@ -4,8 +4,13 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:math_expressions/math_expressions.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-
+import 'package:fluttertoast/fluttertoast.dart';
 import 'welcome_screen.dart';
+
+int _debugTapCounter = 0;
+DateTime? _lastDebugTapTime;
+int _remainingTaps = 0;
+bool _showTapCounter = false;
 
 class CalculatorScreen extends StatefulWidget {
   final ThemeMode themeMode;
@@ -27,7 +32,6 @@ class CalculatorScreenState extends State<CalculatorScreen> {
   bool _isResultCalculated = false;
   bool _isSoundEnabled = false;
   final int _maxInputLength = 15;
-  int _debugTapCount = 0;
   bool _showDebugButton = false;
   String _appVersion = '1.0.0';
   int _debugMenuTitleTapCount = 0;
@@ -36,10 +40,11 @@ class CalculatorScreenState extends State<CalculatorScreen> {
   String _selectedSound = 'hl2.mp3';
 
   final AudioPlayer _audioPlayer = AudioPlayer();
-
+  bool _hasShownShuffleToast = false;
   static const List<String> kOriginalButtonLayout = [
     'AC',
     '+/-',
+    '%',
     '÷',
     '7',
     '8',
@@ -79,26 +84,22 @@ class CalculatorScreenState extends State<CalculatorScreen> {
     });
 
     if (_isSoundEnabled) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text(
-            'Sound effects have been enabled, it\'s going to be loud for now!',
-            style: TextStyle(color: Colors.white),
-          ),
-          backgroundColor: Colors.grey[800],
-          behavior: SnackBarBehavior.floating,
-        ),
+      Fluttertoast.showToast(
+        msg: 'Sound effects enabled',
+        toastLength: Toast.LENGTH_SHORT,
+        gravity: ToastGravity.BOTTOM,
+        backgroundColor: const Color.fromARGB(221, 39, 39, 39),
+        textColor: Colors.white,
+        fontSize: 16.0,
       );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text(
-            'Sound effects have been disabled, it\'s quiet for now.',
-            style: TextStyle(color: Colors.white),
-          ),
-          backgroundColor: Colors.grey[800],
-          behavior: SnackBarBehavior.floating,
-        ),
+      Fluttertoast.showToast(
+        msg: 'Sound effects disabled',
+        toastLength: Toast.LENGTH_SHORT,
+        gravity: ToastGravity.BOTTOM,
+        backgroundColor: const Color.fromARGB(221, 39, 39, 39),
+        textColor: Colors.white,
+        fontSize: 16.0,
       );
     }
   }
@@ -108,7 +109,9 @@ class CalculatorScreenState extends State<CalculatorScreen> {
       try {
         await _audioPlayer.stop();
         await _audioPlayer.play(AssetSource('sounds/$_selectedSound'));
-      } catch (e) {}
+      } catch (e) {
+        print("Error playing sound: $e");
+      }
     }
   }
 
@@ -142,19 +145,40 @@ class CalculatorScreenState extends State<CalculatorScreen> {
             }
             break;
           case '+/-':
-            if (_input.isNotEmpty) {
-              final lastOp = _input.lastIndexOf(RegExp(r'[+\-×÷]'));
-              String before =
-                  lastOp >= 0 ? _input.substring(0, lastOp + 1) : '';
-              String number =
-                  lastOp >= 0 ? _input.substring(lastOp + 1) : _input;
+            if (_isResultCalculated && _result.isNotEmpty) {
+              // Handle toggling sign when we have a calculated result
+              setState(() {
+                _result =
+                    _result.startsWith('-')
+                        ? _result.substring(1)
+                        : '-$_result';
+                _input = _result; // Make the toggled result the new input
+                _isResultCalculated = false;
+              });
+            } else if (_input.isNotEmpty) {
+              // Handle normal case when inputting numbers
+              final numberMatch = RegExp(r'(-?\d+\.?\d*)$').firstMatch(_input);
 
-              number = number.replaceFirst(RegExp(r'^-+'), '');
+              if (numberMatch != null) {
+                final String number = numberMatch.group(0)!;
+                final int numberStart = numberMatch.start;
 
-              if (number.isNotEmpty && !number.startsWith('-')) {
-                number = '-$number';
+                // Toggle the sign
+                final String newNumber =
+                    number.startsWith('-')
+                        ? number.substring(1) // Remove minus
+                        : '-$number'; // Add minus
+
+                // Rebuild the input
+                setState(() {
+                  _input = _input.substring(0, numberStart) + newNumber;
+                });
               }
-              _input = before + number;
+            }
+            break;
+          case '%':
+            if (_input.isNotEmpty) {
+              _input += value;
             }
             break;
           case '.':
@@ -169,7 +193,12 @@ class CalculatorScreenState extends State<CalculatorScreen> {
   }
 
   String _calculateResult(String input) {
-    final expression = input
+    String expression = input.replaceAllMapped(
+      RegExp(r'(\d+\.?\d*)%'),
+      (match) => (double.parse(match.group(1)!) / 100).toString(),
+    );
+
+    expression = expression
         .replaceAll('×', '*')
         .replaceAll('÷', '/')
         .replaceAll(',', '.')
@@ -204,6 +233,18 @@ class CalculatorScreenState extends State<CalculatorScreen> {
     setState(() {
       _buttonLabels.shuffle();
     });
+
+    if (!_hasShownShuffleToast) {
+      Fluttertoast.showToast(
+        msg: 'Info: Hold the button again to unshuffle',
+        toastLength: Toast.LENGTH_LONG,
+        gravity: ToastGravity.BOTTOM,
+        backgroundColor: const Color.fromARGB(221, 39, 39, 39),
+        textColor: Colors.white,
+        fontSize: 16.0,
+      );
+      _hasShownShuffleToast = true;
+    }
   }
 
   void _restoreOriginalButtons() {
@@ -301,38 +342,61 @@ class CalculatorScreenState extends State<CalculatorScreen> {
   }
 
   void _handleTopLeftTap() {
+    final now = DateTime.now();
+
+    if (_lastDebugTapTime == null ||
+        now.difference(_lastDebugTapTime!) >
+            const Duration(milliseconds: 500)) {
+      _debugTapCounter = 0;
+    }
+
+    _lastDebugTapTime = now;
+    _debugTapCounter++;
+
     setState(() {
-      _debugTapCount++;
-      if (_debugTapCount >= 7) {
+      if (_debugTapCounter >= 7) {
         _showDebugButton = true;
-        _debugTapCount = 0;
+        _debugTapCounter = 0;
+
+        Fluttertoast.showToast(
+          msg: 'Debug mode enabled',
+          toastLength: Toast.LENGTH_SHORT,
+          gravity: ToastGravity.BOTTOM,
+          backgroundColor: const Color.fromARGB(221, 39, 39, 39),
+          textColor: Colors.white,
+          fontSize: 16.0,
+        );
       }
     });
   }
 
   void _handleDebugMenuTitleTap() {
+    Fluttertoast.cancel();
+
     setState(() {
       _debugMenuTitleTapCount++;
-
-      // Show a subtle indicator for feedback
-      if (_debugMenuTitleTapCount > 0 && _debugMenuTitleTapCount < 7) {
-        ScaffoldMessenger.of(context).clearSnackBars();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '${7 - _debugMenuTitleTapCount} more taps to unlock credits',
-            ),
-            duration: const Duration(milliseconds: 500),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-
-      if (_debugMenuTitleTapCount >= 7) {
-        _showCredits();
-        _debugMenuTitleTapCount = 0;
-      }
+      _remainingTaps = 7 - _debugMenuTitleTapCount;
+      _showTapCounter = _remainingTaps > 0 && _debugMenuTitleTapCount >= 4;
     });
+
+    if (_showTapCounter) {
+      Fluttertoast.showToast(
+        msg:
+            '$_remainingTaps more tap${_remainingTaps == 1 ? '' : 's'} to see the credits',
+        toastLength: Toast.LENGTH_SHORT,
+        gravity: ToastGravity.BOTTOM,
+        timeInSecForIosWeb: 1,
+        backgroundColor: const Color.fromARGB(221, 39, 39, 39),
+        textColor: Colors.white,
+        fontSize: 14.0,
+      );
+    } else if (_debugMenuTitleTapCount >= 7) {
+      _showCredits();
+      setState(() {
+        _debugMenuTitleTapCount = 0;
+        _remainingTaps = 0;
+      });
+    }
   }
 
   void _showCredits() {
@@ -468,11 +532,13 @@ class CalculatorScreenState extends State<CalculatorScreen> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('App will now close and reset completely'),
-        duration: Duration(seconds: 2),
-      ),
+    Fluttertoast.showToast(
+      msg: 'App will now close and reset.',
+      toastLength: Toast.LENGTH_SHORT,
+      gravity: ToastGravity.BOTTOM,
+      backgroundColor: const Color.fromARGB(221, 248, 53, 53),
+      textColor: Colors.white,
+      fontSize: 16.0,
     );
     await Future.delayed(const Duration(seconds: 2));
     SystemNavigator.pop();
@@ -481,28 +547,17 @@ class CalculatorScreenState extends State<CalculatorScreen> {
   void _showDebugMenu() {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
       ),
       builder: (context) {
         return LayoutBuilder(
           builder: (context, constraints) {
-            // Calculate approximate height needed for content
-            const double titleHeight =
-                20 + 16 + 8; // Text + top padding + bottom padding
-            const double listTileHeight = 56;
-            const double dividerHeight = 16;
-            const double bottomPadding = 24;
-
-            final contentHeight =
-                titleHeight +
-                (6 * listTileHeight) + // 6 ListTiles
-                (3 * dividerHeight) + // 3 Dividers
-                bottomPadding;
-
-            final shouldScroll = constraints.maxHeight < contentHeight;
+            final availableHeight = MediaQuery.of(context).size.height * 0.85;
 
             return Container(
+              constraints: BoxConstraints(maxHeight: availableHeight + 12),
               decoration: BoxDecoration(
                 color: Theme.of(context).cardColor,
                 borderRadius: const BorderRadius.vertical(
@@ -512,146 +567,173 @@ class CalculatorScreenState extends State<CalculatorScreen> {
               child: Stack(
                 children: [
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 24),
-                    child: SingleChildScrollView(
-                      physics:
-                          shouldScroll
-                              ? const AlwaysScrollableScrollPhysics()
-                              : const NeverScrollableScrollPhysics(),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          GestureDetector(
-                            onTap: _handleDebugMenuTitleTap,
-                            child: const Padding(
-                              padding: EdgeInsets.only(top: 16, bottom: 8),
-                              child: Text(
-                                'Debug Menu',
-                                style: TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.red,
-                                ),
-                              ),
-                            ),
-                          ),
-                          Container(
-                            color: Theme.of(context).cardColor,
-                            child: ListTile(
-                              leading: const Icon(Icons.home),
-                              title: const Text('Show Welcome Screen'),
-                              onTap: () {
-                                Navigator.pop(context);
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder:
-                                        (context) => WelcomeScreen(
-                                          themeMode: widget.themeMode,
-                                          onThemeChanged: widget.onThemeChanged,
-                                          onContinue:
-                                              () => Navigator.of(context).pop(),
-                                        ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                          const Divider(height: 1),
-                          Container(
-                            color: Theme.of(context).cardColor,
-                            child: SwitchListTile(
-                              secondary: Icon(
-                                _isSoundEnabled
-                                    ? Icons.volume_up
-                                    : Icons.volume_off,
-                                color: Theme.of(context).colorScheme.primary,
-                              ),
-                              title: const Text('Sound Effects'),
-                              value: _isSoundEnabled,
-                              onChanged: (val) {
-                                Navigator.pop(context);
-                                _toggleSound();
-                              },
-                            ),
-                          ),
-                          const Divider(height: 1),
-                          Container(
-                            color: Theme.of(context).cardColor,
-                            child: ListTile(
-                              leading: const Icon(Icons.shuffle),
-                              title: const Text('Shuffle Buttons'),
-                              onTap: () {
-                                Navigator.pop(context);
-                                _shuffleButtons();
-                              },
-                            ),
-                          ),
-                          Container(
-                            color: Theme.of(context).cardColor,
-                            child: ListTile(
-                              leading: const Icon(Icons.undo),
-                              title: const Text('Unshuffle Buttons'),
-                              onTap: () {
-                                Navigator.pop(context);
-                                _restoreOriginalButtons();
-                              },
-                            ),
-                          ),
-                          const Divider(height: 1),
-                          Container(
-                            color: Theme.of(context).cardColor,
-                            child: ListTile(
-                              leading: const Icon(
-                                Icons.refresh,
+                    padding: const EdgeInsets.only(bottom: 26),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        GestureDetector(
+                          onTap: _handleDebugMenuTitleTap,
+                          child: const Padding(
+                            padding: EdgeInsets.only(top: 18, bottom: 8),
+                            child: Text(
+                              'Debug Menu',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
                                 color: Colors.red,
                               ),
-                              title: const Text(
-                                'Full App Reset',
-                                style: TextStyle(
-                                  color: Colors.red,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              subtitle: const Text(
-                                'Clear all app data and close the app',
-                              ),
-                              onTap: () {
-                                Navigator.pop(context);
-                                showDialog(
-                                  context: context,
-                                  builder:
-                                      (context) => AlertDialog(
-                                        title: const Text('Confirm Full Reset'),
-                                        content: const Text(
-                                          'This will clear ALL app data and close the app. Continue?',
-                                        ),
-                                        actions: [
-                                          TextButton(
-                                            child: const Text('Cancel'),
-                                            onPressed:
-                                                () =>
-                                                    Navigator.of(context).pop(),
-                                          ),
-                                          TextButton(
-                                            child: const Text(
-                                              'RESET',
-                                              style: TextStyle(
-                                                color: Colors.red,
-                                              ),
-                                            ),
-                                            onPressed: () {
-                                              Navigator.of(context).pop();
-                                              _resetApp();
-                                            },
-                                          ),
-                                        ],
-                                      ),
-                                );
-                              },
                             ),
                           ),
-                        ],
-                      ),
+                        ),
+                        Flexible(
+                          child: ListView(
+                            shrinkWrap: true,
+                            children: [
+                              Container(
+                                color: Theme.of(context).cardColor,
+                                child: ListTile(
+                                  dense: false,
+                                  leading: const Icon(Icons.home),
+                                  title: const Text('Show Welcome Screen'),
+                                  onTap: () {
+                                    Navigator.pop(context);
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder:
+                                            (context) => WelcomeScreen(
+                                              themeMode: widget.themeMode,
+                                              onThemeChanged:
+                                                  widget.onThemeChanged,
+                                              onContinue:
+                                                  () =>
+                                                      Navigator.of(
+                                                        context,
+                                                      ).pop(),
+                                            ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                              const Divider(height: 1),
+                              Container(
+                                color: Theme.of(context).cardColor,
+                                child: SwitchListTile(
+                                  dense: false,
+                                  secondary: Icon(
+                                    _isSoundEnabled
+                                        ? Icons.volume_up
+                                        : Icons.volume_off,
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
+                                  ),
+                                  title: const Text('Sound Effects'),
+                                  value: _isSoundEnabled,
+                                  onChanged: (val) {
+                                    Navigator.pop(context);
+                                    _toggleSound();
+                                  },
+                                ),
+                              ),
+                              Container(
+                                color: Theme.of(context).cardColor,
+                                child: ListTile(
+                                  dense: false,
+                                  leading: const Icon(Icons.music_note),
+                                  title: const Text('Show Sound Effect Menu'),
+                                  onTap: () {
+                                    Navigator.pop(context);
+                                    _showSoundPicker();
+                                  },
+                                ),
+                              ),
+                              const Divider(height: 1),
+                              Container(
+                                color: Theme.of(context).cardColor,
+                                child: ListTile(
+                                  dense: false,
+                                  leading: const Icon(Icons.shuffle),
+                                  title: const Text('Shuffle Buttons'),
+                                  onTap: () {
+                                    Navigator.pop(context);
+                                    _shuffleButtons();
+                                  },
+                                ),
+                              ),
+                              Container(
+                                color: Theme.of(context).cardColor,
+                                child: ListTile(
+                                  dense: false,
+                                  leading: const Icon(Icons.undo),
+                                  title: const Text('Unshuffle Buttons'),
+                                  onTap: () {
+                                    Navigator.pop(context);
+                                    _restoreOriginalButtons();
+                                  },
+                                ),
+                              ),
+                              const Divider(height: 1),
+                              Container(
+                                color: Theme.of(context).cardColor,
+                                child: ListTile(
+                                  dense: false,
+                                  leading: const Icon(
+                                    Icons.refresh,
+                                    color: Colors.red,
+                                  ),
+                                  title: const Text(
+                                    'Full App Reset',
+                                    style: TextStyle(
+                                      color: Colors.red,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  subtitle: const Text(
+                                    'Clear all app data and close the app',
+                                  ),
+                                  onTap: () {
+                                    Navigator.pop(context);
+                                    showDialog(
+                                      context: context,
+                                      builder:
+                                          (context) => AlertDialog(
+                                            title: const Text(
+                                              'Confirm Full Reset',
+                                            ),
+                                            content: const Text(
+                                              'This will clear ALL app data and close the app. Continue?',
+                                            ),
+                                            actions: [
+                                              TextButton(
+                                                child: const Text('Cancel'),
+                                                onPressed:
+                                                    () =>
+                                                        Navigator.of(
+                                                          context,
+                                                        ).pop(),
+                                              ),
+                                              TextButton(
+                                                child: const Text(
+                                                  'RESET',
+                                                  style: TextStyle(
+                                                    color: Colors.red,
+                                                  ),
+                                                ),
+                                                onPressed: () {
+                                                  Navigator.of(context).pop();
+                                                  _resetApp();
+                                                },
+                                              ),
+                                            ],
+                                          ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   Positioned(
@@ -676,12 +758,27 @@ class CalculatorScreenState extends State<CalculatorScreen> {
     );
   }
 
-  Widget _buildRoundButton(String text, {Color? color, bool isNumber = false}) {
+  Widget _buildRoundButton(
+    String text, {
+    Color? color,
+    bool isNumber = false,
+    int? index,
+  }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final bool isTopFunctionButton = index != null && index < 3;
+
     final buttonColor =
-        isNumber
-            ? (isDark ? const Color(0xFF3F3F3F) : const Color(0xFF818181))
-            : (color ?? const Color(0xFF007AFF));
+        color ??
+        (isNumber
+            ? (isDark
+                ? const Color.fromARGB(255, 43, 43, 43)
+                : const Color.fromARGB(255, 160, 160, 160))
+            : (isTopFunctionButton
+                ? (isDark
+                    ? const Color.fromARGB(255, 83, 83, 83)
+                    : const Color.fromARGB(255, 104, 104, 104))
+                : const Color.fromARGB(255, 0, 122, 255)));
 
     return Expanded(
       child: Padding(
@@ -709,7 +806,9 @@ class CalculatorScreenState extends State<CalculatorScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final buttonColor =
         isNumber
-            ? (isDark ? const Color(0xFF3F3F3F) : const Color(0xFF818181))
+            ? (isDark
+                ? const Color.fromARGB(255, 43, 43, 43)
+                : const Color.fromARGB(255, 160, 160, 160))
             : (color ?? const Color(0xFF007AFF));
 
     return Expanded(
@@ -891,38 +990,34 @@ class CalculatorScreenState extends State<CalculatorScreen> {
                   child: Column(
                     children: [
                       _buildRow([
-                        _buildWideButton(_buttonLabels[0], isNumber: false),
-                        _buildRoundButton(_buttonLabels[1], isNumber: false),
-                        const SizedBox(width: 8),
-                        _buildRoundButton(_buttonLabels[2], isNumber: false),
+                        _buildRoundButton(_buttonLabels[0], index: 0),
+                        _buildRoundButton(_buttonLabels[1], index: 1),
+                        _buildRoundButton(_buttonLabels[2], index: 2),
+                        _buildRoundButton(_buttonLabels[3], index: 3),
                       ]),
                       _buildRow([
-                        _buildRoundButton(_buttonLabels[3], isNumber: true),
                         _buildRoundButton(_buttonLabels[4], isNumber: true),
                         _buildRoundButton(_buttonLabels[5], isNumber: true),
-                        const SizedBox(width: 8),
-                        _buildRoundButton(_buttonLabels[6], isNumber: false),
+                        _buildRoundButton(_buttonLabels[6], isNumber: true),
+                        _buildRoundButton(_buttonLabels[7], isNumber: false),
                       ]),
                       _buildRow([
-                        _buildRoundButton(_buttonLabels[7], isNumber: true),
                         _buildRoundButton(_buttonLabels[8], isNumber: true),
                         _buildRoundButton(_buttonLabels[9], isNumber: true),
-                        const SizedBox(width: 8),
-                        _buildRoundButton(_buttonLabels[10], isNumber: false),
+                        _buildRoundButton(_buttonLabels[10], isNumber: true),
+                        _buildRoundButton(_buttonLabels[11], isNumber: false),
                       ]),
                       _buildRow([
-                        _buildRoundButton(_buttonLabels[11], isNumber: true),
                         _buildRoundButton(_buttonLabels[12], isNumber: true),
                         _buildRoundButton(_buttonLabels[13], isNumber: true),
-                        const SizedBox(width: 8),
-                        _buildRoundButton(_buttonLabels[14], isNumber: false),
+                        _buildRoundButton(_buttonLabels[14], isNumber: true),
+                        _buildRoundButton(_buttonLabels[15], isNumber: false),
                       ]),
                       _buildRow([
-                        _buildWideButton(_buttonLabels[15], isNumber: true),
-                        _buildRoundButton(_buttonLabels[16], isNumber: true),
-                        const SizedBox(width: 8),
+                        _buildWideButton(_buttonLabels[16], isNumber: true),
+                        _buildRoundButton(_buttonLabels[17], isNumber: true),
                         _buildRoundButton(
-                          _buttonLabels[17],
+                          _buttonLabels[18],
                           color: Colors.orange,
                           isNumber: false,
                         ),
